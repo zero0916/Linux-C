@@ -1,0 +1,170 @@
+C51 COMPILER V9.00   EX1                                                                   02/16/2013 22:17:18 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE EX1
+OBJECT MODULE PLACED IN ex1.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE ex1.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #define uchar unsigned char
+   3          #define uint unsigned int
+   4          sbit EN=P2^7; //LCD使能
+   5          sbit RS=P2^6;
+   6          sbit KEY=P3^5; //清0键
+   7          uchar table[]="0123456789:-";
+   8          uchar table1[]={"Wait..."};      //
+   9          uchar a,b,c,d,i=0,flag;
+  10          uchar table0[62];
+  11          float S;
+  12          uint Speed_dat,Speed_dat1;
+  13          uint Total_distance;
+  14          uchar num1=0;
+  15          uchar time_flag=0;
+  16          void delay(uint z)//延时函数
+  17          {
+  18   1         uint x,y;
+  19   1         for(x=z;x>0;x--)
+  20   1            for(y=110;y>0;y--);
+  21   1      }
+  22          /*******************1602液晶***********************/
+  23          
+  24          void write_date(uchar date)//写数据
+  25          { EN=0; RS=1;  P0=date;         EN=0;  delay(5); EN=1;}
+  26          void write_com(uchar date)//写命令
+  27          {       EN=0;RS=0;P0=date;      EN=0;delay(5); EN=1; }
+  28          void init_1602()  //LCD初始化
+  29          {
+  30   1              uchar num;
+  31   1              write_com(0x38); write_com(0x0c);write_com(0x06);
+  32   1              write_com(0x01); write_com(0x80);
+  33   1              for(num=0;num<7;num++)    //显示“Wait...”     
+  34   1              {
+  35   2                      write_date(table1[num]);//通过循环将要显示的字符注意显示出来
+  36   2              }
+  37   1              delay(1000);   //等待大约3s
+  38   1      }
+  39          
+  40          void display()
+  41          {
+  42   1              if(flag==1)
+  43   1          {  
+  44   2                 flag=0;  
+  45   2             if(table0[4]=='M'&&(table0[18]=='A'))//确定是否收到"GPRMC"这一帧数据     且是否为有效数据
+  46   2             {    
+  47   3                          if(table0[43]=='E')      // 
+  48   3                              {
+  49   4                                      if(table0[46]=='.')  //<10海里每小时
+  50   4                                              S=(table0[45]-48)*100+(table0[47]-48)*10+(table0[48]-48);
+  51   4                                      else if(table0[47]=='.')
+  52   4                                              S=(table0[45]-48)*1000+(table0[46]-48)*100+(table0[48]-48)*10+(table0[49]-48);
+  53   4                              }
+  54   3                              Speed_dat=(uint)(S*1.85);     //把海里/h转换成km/h
+  55   3                              Speed_dat1=(uint)(S*0.514);       //把海里/h转换成m/s 计算总里程中用到
+C51 COMPILER V9.00   EX1                                                                   02/16/2013 22:17:18 PAGE 2   
+
+  56   3                              if(time_flag==1)
+  57   3                              {
+  58   4                                      time_flag=0;
+  59   4                                      Total_distance+=(Speed_dat1/100);       //每秒刷新一次里程单位m
+  60   4                                      TR0=1;
+  61   4                              }        
+  62   3      
+  63   3                              write_com(0x80);                //显示速度
+  64   3                              write_date('S');
+  65   3                              write_date('P');
+  66   3                              write_date('E');
+  67   3                              write_date('E');
+  68   3                              write_date('D');
+  69   3                              write_date(':');
+  70   3                              if(Speed_dat/100<10){write_date(' ');write_date(table[Speed_dat/100]);}                                   
+  71   3                              else{write_date(table[Speed_dat/1000]);write_date(table[Speed_dat%1000/100]);}    
+  72   3                          write_date('.');
+  73   3                          write_date(table[Speed_dat%100/10]);
+  74   3                          write_date('K');   write_date('m'); write_date('/');  write_date('h'); 
+  75   3      
+  76   3                              write_com(0x80+0x40);           //显示里程
+  77   3                              write_date('J');write_date('O');write_date('U');write_date('R');
+  78   3                              write_date('N');write_date('E');write_date('Y');
+  79   3                              write_date(':');
+  80   3                              write_date(table[Total_distance/10000]);
+  81   3                              write_date(table[Total_distance%10000/1000]);
+  82   3                              write_date('.');
+  83   3                              write_date(table[Total_distance%10000%1000/100]);
+  84   3                              write_date(table[Total_distance%10000%1000%100/10]);
+  85   3                              write_date('K');        write_date('m');
+  86   3             }
+  87   2             ES=1; //开串口中断                                                               
+  88   2         } 
+  89   1      }
+  90          
+  91          void init()//初始化
+  92          {
+  93   1             i=0;
+  94   1             TMOD=0x21;  PCON=0x00;
+  95   1             TH1=0xfD;   TL1=0xfD;  //波特率9600
+  96   1                 TH0=(65536-50000)/256; //给定时器高四位赋初值
+  97   1                 TL0=(65536-50000)%256; //给定时器第四位赋初值
+  98   1                 ET0=1;           //打开定时器T1中段
+  99   1                 TR0=1;               //启动定时器T0
+ 100   1             SM0=0;      //串行口方式1
+ 101   1             SM1=1;
+ 102   1             REN=1;      ////允许接收
+ 103   1             EA=1;       //开中断
+ 104   1             TR1=1;      //启动T1
+ 105   1                 ES=0;           //关闭串行口中断
+ 106   1      }
+ 107          void main()
+ 108          {                                       
+ 109   1            init();     //系统初始化
+ 110   1                init_1602();//LCD1602初始化
+ 111   1            ES=1;
+ 112   1            while(1)
+ 113   1            {
+ 114   2                display(); //显示速度
+ 115   2                        if(!KEY)       //清0键按下
+ 116   2                        {             delay(10);
+ 117   3                                      if(!KEY){Total_distance=0;while(!KEY);  }
+C51 COMPILER V9.00   EX1                                                                   02/16/2013 22:17:18 PAGE 3   
+
+ 118   3                              }
+ 119   2            }
+ 120   1      }
+ 121          
+ 122          void time0() interrupt  1                 //定时器中断0
+ 123          {
+ 124   1              TH0=(65536-50000)/256; //给定时器高四位赋初值
+ 125   1              TL0=(65536-50000)%256; //给定时器第四位赋初值
+ 126   1              num1++;
+ 127   1              if(num1==20)   //1秒到
+ 128   1              {
+ 129   2                      TR0=0;
+ 130   2                      num1=0;
+ 131   2                      time_flag=1;
+ 132   2              }       
+ 133   1      }
+ 134          
+ 135          void ser() interrupt 4//串口中断、初次分离'$'开头的字符串，并写入接收数组
+ 136          {
+ 137   1             RI=0;  table0[i]=SBUF;      i++;
+ 138   1             if(table0[0]==0x24)//如果是此字符；马上接收数据
+ 139   1             {
+ 140   2                                if(i==62){ i=0;flag=1;ES=0; }                                              
+ 141   2             } 
+ 142   1             else           i=0; 
+ 143   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    838    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =    101    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
